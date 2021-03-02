@@ -3,31 +3,33 @@
 namespace App\Jobs;
 
 use App\Models\Order;
+use App\Notifications\InvoicePaid;
+use DateTime;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 
-class SendOrder implements ShouldQueue, ShouldBeUnique
+class SendOrder implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
      * The product instance.
      *
-     * @var \App\Order
+     * @var Order
      */
     public $order;
 
     /**
-     * The number of seconds after which the job's unique lock will be released.
+     * The number of times the job may be attempted.
      *
      * @var int
      */
-    public $uniqueFor = 3600;
+    public $tries = 5;
 
     /**
      * Create a new job instance.
@@ -48,19 +50,32 @@ class SendOrder implements ShouldQueue, ShouldBeUnique
     public function handle()
     {
         $this->order->tries++;
-        Notification::route('mail', 'et.azm112@gmail.com')->notify(new \App\Notifications\InvoicePaid($this->order));
+        Notification::route('mail', 'et.azm112@gmail.com')->notify(new InvoicePaid($this->order));
         $this->order->save();
+
+//        $this->release(5);
+//        $this->fail($exception);
     }
 
 
     /**
-     * The unique ID of the job.
+     * Get the middleware the job should pass through.
      *
-     * @return string
+     * @return array
      */
-    public function uniqueId()
+    public function middleware()
     {
-        return $this->order->id;
+        return [(new WithoutOverlapping($this->order->id))->dontRelease()];
+    }
+
+    /**
+     * Determine the time at which the job should timeout.
+     *
+     * @return DateTime
+     */
+    public function retryUntil(): DateTime
+    {
+        return now()->addMinutes(10);
     }
 
 }
