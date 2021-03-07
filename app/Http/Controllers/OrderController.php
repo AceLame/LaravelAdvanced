@@ -18,7 +18,8 @@ class OrderController extends Controller
         if ($request->input('user_name'))
             $order = Order::create($request->only('user_name'));
         else
-            $order = Order::first();
+            $order = Order::latest()->first();
+
         SendOrder::dispatch($order);
         dd(get_called_class());
     }
